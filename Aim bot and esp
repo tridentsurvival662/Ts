@@ -1,0 +1,221 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local CoreGui = game:GetService("CoreGui")
+
+-- Define the correct key
+local correctKey = "carlyle1212"
+
+-- GUI for entering the key
+local keyGui = Instance.new("ScreenGui")
+keyGui.Name = "KeyGUI"
+keyGui.Parent = CoreGui
+
+local background = Instance.new("Frame")
+background.Size = UDim2.new(1, 0, 1, 0)
+background.BackgroundColor3 = Color3.new(0, 0, 0)
+background.BackgroundTransparency = 0.5
+background.Parent = keyGui
+
+local keyLabel = Instance.new("TextLabel")
+keyLabel.Text = "Enter Key:"
+keyLabel.Size = UDim2.new(0, 200, 0, 50)
+keyLabel.Position = UDim2.new(0.5, -100, 0.4, -25)
+keyLabel.TextColor3 = Color3.new(1, 1, 1)
+keyLabel.TextScaled = true
+keyLabel.BackgroundTransparency = 1
+keyLabel.Parent = keyGui
+
+local keyBox = Instance.new("TextBox")
+keyBox.Size = UDim2.new(0, 200, 0, 50)
+keyBox.Position = UDim2.new(0.5, -100, 0.5, -25)
+keyBox.PlaceholderText = "Enter Key Here"
+keyBox.TextScaled = true
+keyBox.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+keyBox.TextColor3 = Color3.new(1, 1, 1)
+keyBox.Parent = keyGui
+
+local submitButton = Instance.new("TextButton")
+submitButton.Size = UDim2.new(0, 100, 0, 50)
+submitButton.Position = UDim2.new(0.5, -50, 0.6, -25)
+submitButton.Text = "Submit"
+submitButton.TextColor3 = Color3.new(1, 1, 1)
+submitButton.BackgroundColor3 = Color3.new(0, 0, 0.5)
+submitButton.TextScaled = true
+submitButton.Parent = keyGui
+
+local scriptEnabled = false
+
+-- Function to handle key validation
+local function validateKey()
+    if keyBox.Text == correctKey then
+        scriptEnabled = true
+        keyGui:Destroy() -- Remove the key prompt GUI
+        print("Key validated successfully. Script is now active.")
+    else
+        print("Incorrect key. Disabling script.")
+        game:Shutdown() -- Shut down the game if the key is incorrect
+    end
+end
+
+submitButton.MouseButton1Click:Connect(validateKey)
+
+-- Make sure the script doesn't run if the key is invalid
+while not scriptEnabled do
+    wait(1) -- Wait until the key is validated
+end
+
+-- Proceed with the rest of the script only if the key is valid
+if scriptEnabled then
+    -- Adjust settings
+    local aimRadius = 100 -- Radius for aim assist
+    local aimSpeed = 0.2 -- Smoothness of camera adjustment
+    local touchEnabled = false -- Toggle for aim assist when the screen is touched
+    local crosshairSize = 20 -- Default crosshair size
+
+    -- ESP Table
+    local espBoxes = {}
+
+    -- Function to create the crosshair
+    local function createCrosshair()
+        -- Remove old crosshair if it exists
+        removeCrosshair()
+
+        local crosshairFrame = Instance.new("Frame")
+        crosshairFrame.Name = "Crosshair"
+        crosshairFrame.Size = UDim2.new(0, crosshairSize, 0, crosshairSize)
+        crosshairFrame.Position = UDim2.new(0.5, -crosshairSize/2, 0.5, -crosshairSize/2)
+        crosshairFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+        crosshairFrame.BackgroundColor3 = Color3.new(1, 1, 1) -- White color
+        crosshairFrame.BorderSizePixel = 0
+        crosshairFrame.Parent = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui")
+
+        -- Create the outer circular border for the crosshair
+        local outerCircle = Instance.new("Frame")
+        outerCircle.Size = UDim2.new(1, 0, 1, 0)
+        outerCircle.Position = UDim2.new(0, 0, 0, 0)
+        outerCircle.BackgroundColor3 = Color3.new(1, 1, 1) -- White color
+        outerCircle.BorderSizePixel = 0
+        outerCircle.Parent = crosshairFrame
+
+        -- Create the hole in the middle
+        local hole = Instance.new("Frame")
+        hole.Size = UDim2.new(0.3, 0, 0.3, 0) -- Size of the hole in the center
+        hole.Position = UDim2.new(0.35, 0, 0.35, 0) -- Centered within the outer circle
+        hole.BackgroundTransparency = 1
+        hole.BorderSizePixel = 0
+        hole.Parent = crosshairFrame
+    end
+
+    -- Function to remove crosshair
+    local function removeCrosshair()
+        local crosshair = LocalPlayer:FindFirstChild("PlayerGui"):FindFirstChild("Crosshair")
+        if crosshair then
+            crosshair:Destroy()
+        end
+    end
+
+    -- Function to check if any part of a character is inside the crosshair
+    local function isCharacterInCrosshair(character)
+        local screenCenter = Camera.ViewportSize / 2
+        local crosshairRadius = crosshairSize / 2
+        local partsInCrosshair = false
+
+        -- Loop through each part of the character to check if it's inside the crosshair
+        for _, part in pairs(character:GetChildren()) do
+            if part:IsA("BasePart") then
+                local partPosition = part.Position
+                local screenPoint = Camera:WorldToScreenPoint(partPosition)
+
+                -- Calculate the distance between the part and the center of the screen
+                local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - Vector2.new(screenCenter.X, screenCenter.Y)).Magnitude
+
+                -- Check if the part is within the crosshair radius
+                if distance <= crosshairRadius then
+                    partsInCrosshair = true
+                    break
+                end
+            end
+        end
+
+        return partsInCrosshair
+    end
+
+    -- Function to get the nearest target's head if any part is in crosshair
+    local function getNearestTarget()
+        local nearestTarget = nil
+        local shortestDistance = aimRadius
+
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+                if isCharacterInCrosshair(player.Character) then
+                    -- If the character is inside the crosshair, aim at their head
+                    local headPosition = player.Character.Head.Position
+                    local screenPoint = Camera:WorldToScreenPoint(headPosition)
+                    local screenCenter = Camera.ViewportSize / 2
+
+                    -- Calculate the distance from the center of the screen to the target's head
+                    local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - Vector2.new(screenCenter.X, screenCenter.Y)).Magnitude
+                    if distance < shortestDistance then
+                        nearestTarget = player
+                        shortestDistance = distance
+                    end
+                end
+            end
+        end
+
+        return nearestTarget
+    end
+
+    -- Aim assist logic
+    RunService.RenderStepped:Connect(function()
+        if touchEnabled then
+            local target = getNearestTarget()
+            if target and target.Character and target.Character:FindFirstChild("Head") then
+                local headPosition = target.Character.Head.Position
+                -- Smoothly adjust the camera to aim at the target's head
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, headPosition), aimSpeed)
+            end
+        end
+    end)
+
+    -- Touch input handling
+    UserInputService.TouchStarted:Connect(function()
+        touchEnabled = true
+    end)
+
+    UserInputService.TouchEnded:Connect(function()
+        touchEnabled = false
+    end)
+
+    -- ESP Management (Same as in previous parts of the code)
+    Players.PlayerRemoving:Connect(function(player)
+        if espBoxes[player] then
+            espBoxes[player].espBox:Destroy()
+            espBoxes[player] = nil
+        end
+    end)
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            createESPBox(player)
+        end
+    end
+
+    Players.PlayerAdded:Connect(function(player)
+        if player ~= LocalPlayer then
+            createESPBox(player)
+        end
+    end)
+
+    RunService.RenderStepped:Connect(function()
+        -- Update ESP boxes and check for characters in the crosshair
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                updateESPBox(player)
+            end
+        end
+    end)
+end
