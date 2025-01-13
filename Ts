@@ -1,0 +1,66 @@
+                    local screenPoint = Camera:WorldToScreenPoint(headPosition)
+                    local screenCenter = Camera.ViewportSize / 2
+
+                    -- Calculate the distance from the center of the screen to the target's head
+                    local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - Vector2.new(screenCenter.X, screenCenter.Y)).Magnitude
+                    if distance < shortestDistance then
+                        nearestTarget = player
+                        shortestDistance = distance
+                    end
+                end
+            end
+        end
+
+        return nearestTarget
+    end
+
+    -- Aim assist logic
+    RunService.RenderStepped:Connect(function()
+        if touchEnabled then
+            local target = getNearestTarget()
+            if target and target.Character and target.Character:FindFirstChild("Head") then
+                local headPosition = target.Character.Head.Position
+                -- Smoothly adjust the camera to aim at the target's head
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, headPosition), aimSpeed)
+            end
+        end
+    end)
+
+    -- Touch input handling
+    UserInputService.TouchStarted:Connect(function()
+        touchEnabled = true
+    end)
+
+    UserInputService.TouchEnded:Connect(function()
+        touchEnabled = false
+    end)
+
+    -- ESP Management (Same as in previous parts of the code)
+    Players.PlayerRemoving:Connect(function(player)
+        if espBoxes[player] then
+            espBoxes[player].espBox:Destroy()
+            espBoxes[player] = nil
+        end
+    end)
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            createESPBox(player)
+        end
+    end
+
+    Players.PlayerAdded:Connect(function(player)
+        if player ~= LocalPlayer then
+            createESPBox(player)
+        end
+    end)
+
+    RunService.RenderStepped:Connect(function()
+        -- Update ESP boxes and check for characters in the crosshair
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                updateESPBox(player)
+            end
+        end
+    end)
+end
